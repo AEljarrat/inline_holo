@@ -3,6 +3,12 @@ Python code for inline holography using through-focus image series.
 
 The purpose of this repository is to develop code that adapts to the needs of focal series theoretical and experimental analysis, in optical and electron microscopy, taking advantage of specialized Python libraries such as hyperspy and pycuda.
 
-It needs a working hyperspy environment (numpy, scipy, matplotlib, etc. should be included in this environment).
+Requirements
+------------
+It needs a working hyperspy environment. That includes other packages such as numpy, scipy, matplotlib, etc. These should also be included in that environment.
 
-Pycuda support is optional; it needs pycuda and skcuda modules to be installed and working.
+CUDA support is optional; it needs pycuda and skcuda modules to be installed and working. Activating the optional CUDA support in some modules can improve significantly the running time.
+
+Usage
+-----
+from inline_holo import *

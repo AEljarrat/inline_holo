@@ -297,9 +297,9 @@ class ModifiedImage(Image):
          original signal had one.
         '''
         if radius is None:
+            Nx, Ny = self.axes_manager.signal_shape
             if origin is None:
                 # Compute origin
-                Nx, Ny = self.axes_manager.signal_shape
                 origin = (Nx/2., Ny/2.)
 
             # Get radial binary integration mesh

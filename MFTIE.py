@@ -27,7 +27,7 @@ else:
 
 class MFTIE():
     """
-    Multi-focus Transport of Intensity Equation solver, a focal-series based
+    Multi-focus Transport of Intensity Equation solver [1], a focal-series based
     phase reconstruction algorithm. Will retrieve the phase from a focal series
     deterministically through the solution of the multi-focus transport of
     intensity equation (MF-TIE). A focal series must be provided such that:
@@ -48,6 +48,12 @@ class MFTIE():
     The code can run in a GPU, if available:
     >>> mftie = MFTIE(fs, True)   # Init will try to use GPU...
     >>> phase_mf = mftie()        # If available, this step is the sped-up!
+    
+    References
+    ----------
+    A. Eljarrat, J. Müller, M. R. S. Huang, and C. T. Koch, "Multi-focus TIE 
+    algorithm including partial spatial coherence and overlapping filters," 
+    Opt. Express 26, 11819-11833 (2018)
 
     Authors
     -------

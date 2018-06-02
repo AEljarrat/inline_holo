@@ -360,6 +360,40 @@ class ModifiedImage(Image):
         angular_integral = self.integrate_binary(omega, normalize)
         return angular_integral
 
+    def get_digitized_radius(self, bin_size=None):
+        '''
+        Obtain a digitized radial mesh that can be used for radial integration.
+
+        Parameters
+        ----------
+        bin_size : None, int, float
+         Bin size for the digitized mesh, in pixel or scaled units depending if
+         an integer or float value is used. By default equal to None, a bin size
+         equal to the pixel size is used.
+
+        Returns
+        -------
+        radius : MI signal
+        '''
+        # self is a HS image
+        # TODO: implement signal shift parameter
+        # TODO: implement map compatible integration method
+
+        if bin_size is None:
+            scales = [axi.scale**2. for axi in self.axes_manager.signal_axes]
+            bin_size = np.sqrt(np.sum(scales))
+        elif type(bin_size) is int:
+            scales = [axi.scale**2. for axi in self.axes_manager.signal_axes]
+            bin_size *= np.sqrt(np.sum(scales))
+
+        xx, yy = [axi.axis for axi in self.axes_manager.signal_axes]
+        radius = np.sqrt(xx[:, None]**2. + yy[None,:]**2.)
+
+        bins = np.arange(radius.min(), radius.max()+1.1*bin_size, bin_size)
+        ret = img._get_signal_signal()
+        ret.data = bins[np.digitize(radius, bins)]
+        return ret
+
     def plot(self, polar=False, fftshift=False, *erps, **kwerps):
         """
         A bad cover version of Image.plot method, useful to produce two images

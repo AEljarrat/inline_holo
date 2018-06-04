@@ -170,6 +170,35 @@ class ModifiedImage(Image):
             s.axes_manager.navigation_axes[0].axis = self.axes_manager.navigation_axes[0].axis.copy()
         return s
 
+    def get_real_space(self, shifts=None):
+        """
+        Returns the real space coordinate vectors for this image.
+
+        Parameters
+        ----------
+        shifts : None or iterable
+         Shift the image coordinates according to the given amounts, in pixel
+         or scaled units depending if an int or float value are used. By default
+         equal to None, the origin set by the axes_manager is used.
+
+        Returns
+        -------
+        coords : list
+         With two values.
+        """
+        scales = [axi.scale for axi in self.axes_manager.signal_axes]
+        coords = [axi.axis.copy() for axi in self.axes_manager.signal_axes]
+
+        if shifts is not None:
+            shifts = list(shifts)
+            if not len(shifts) == 2:
+                raise "The number of shift values should be 2"
+            for io in range(2):
+                if type(shifts[io]) is int:
+                    shifts[io] *= scales[io]
+                coords[io] -= shifts[io]
+        return coords
+
     def get_fourier_space(self, retstr='square'):
         """
         Returns meshgrids for Fourier transforms of the image. Can be selected
@@ -212,6 +241,41 @@ class ModifiedImage(Image):
                 return k2, kx, ky
             else:
                 raise ValueError('Parameter retstr not recognized: '+retstr)
+
+    def get_digitized_radius(self, bin_size=None, shifts=None):
+        '''
+        Obtain a digitized radial mesh of the image useful for binary counting.
+
+        Parameters
+        ----------
+        bin_size : None, int, float
+         Bin size for the digitized mesh, in pixel or scaled units depending if
+         an integer or float value is used. By default equal to None, a bin size
+         equal to the pixel size is used.
+        shifts : None or iterable
+         Shift the origin of the image coordinates according to the given
+         amounts. See ``self.get_real_space`` for more info.
+
+        Returns
+        -------
+        radius : MI signal
+        '''
+        # self is a HS image
+        # TODO: implement map compatible integration method
+        xx, yy = self.get_real_space(shifts=shifts)
+        radius = np.sqrt(xx[:, None]**2. + yy[None,:]**2.)
+
+        # binarization
+        scales = [axi.scale for axi in self.axes_manager.signal_axes]
+        if bin_size is None:
+            bin_size  = np.sqrt(np.sum(np.power(scales, 2)))
+        elif type(bin_size) is int:
+            bin_size *= np.sqrt(np.sum(np.power(scales, 2)))
+
+        bins = np.arange(radius.min(), radius.max()+1.1*bin_size, bin_size)
+        ret = self._get_signal_signal()
+        ret.data = bins[np.digitize(radius, bins)]
+        return ret
 
     def integrate_binary(self, imask, normalize=True):
         '''
@@ -359,40 +423,6 @@ class ModifiedImage(Image):
 
         angular_integral = self.integrate_binary(omega, normalize)
         return angular_integral
-
-    def get_digitized_radius(self, bin_size=None):
-        '''
-        Obtain a digitized radial mesh that can be used for radial integration.
-
-        Parameters
-        ----------
-        bin_size : None, int, float
-         Bin size for the digitized mesh, in pixel or scaled units depending if
-         an integer or float value is used. By default equal to None, a bin size
-         equal to the pixel size is used.
-
-        Returns
-        -------
-        radius : MI signal
-        '''
-        # self is a HS image
-        # TODO: implement signal shift parameter
-        # TODO: implement map compatible integration method
-
-        if bin_size is None:
-            scales = [axi.scale**2. for axi in self.axes_manager.signal_axes]
-            bin_size = np.sqrt(np.sum(scales))
-        elif type(bin_size) is int:
-            scales = [axi.scale**2. for axi in self.axes_manager.signal_axes]
-            bin_size *= np.sqrt(np.sum(scales))
-
-        xx, yy = [axi.axis for axi in self.axes_manager.signal_axes]
-        radius = np.sqrt(xx[:, None]**2. + yy[None,:]**2.)
-
-        bins = np.arange(radius.min(), radius.max()+1.1*bin_size, bin_size)
-        ret = self._get_signal_signal()
-        ret.data = bins[np.digitize(radius, bins)]
-        return ret
 
     def plot(self, polar=False, fftshift=False, *erps, **kwerps):
         """

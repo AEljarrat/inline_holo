@@ -390,7 +390,7 @@ class ModifiedImage(Image):
         radius = np.sqrt(xx[:, None]**2. + yy[None,:]**2.)
 
         bins = np.arange(radius.min(), radius.max()+1.1*bin_size, bin_size)
-        ret = img._get_signal_signal()
+        ret = self._get_signal_signal()
         ret.data = bins[np.digitize(radius, bins)]
         return ret
 

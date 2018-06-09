@@ -81,8 +81,8 @@ def integrate_binary_comp(sdata, inv):
     idata : numpy array
      The integral result.
     '''
-    idata = np.bincount(inv, weights=sdata.real.ravel())
-    idata = ridata + 1j*np.bincount(inv, weights=sdata.imag.ravel())
+    idata = np.bincount(inv, weights=sdata.real.ravel()) + \
+            1j * np.bincount(inv, weights=sdata.imag.ravel())
     return idata
 
 class ModifiedImage(Image):
@@ -261,7 +261,6 @@ class ModifiedImage(Image):
         radius : MI signal
         '''
         # self is a HS image
-        # TODO: implement map compatible integration method
         xx, yy = self.get_real_space(shifts=shifts)
         radius = np.sqrt(xx[:, None]**2. + yy[None,:]**2.)
 
@@ -277,7 +276,7 @@ class ModifiedImage(Image):
         ret.data = bins[np.digitize(radius, bins)]
         return ret
 
-    def integrate_binary(self, imask, normalize=True):
+    def integrate_binary(self, bin_mask, normalize=True, *args, **kwargs):
         '''
         Image integration with binarized mask. The binarization is achieved by
         first finding the unique elements of the provided array and adding the
@@ -285,12 +284,12 @@ class ModifiedImage(Image):
 
         Parameters
         ----------
-        imask : ndarray
-         An array with the same shape as the image(s), the coordinates of unique
-         elements in this array are found by calling "numpy.unique" method.
+        bin_mask : Signal2D
+         A 2D signal with the same shape as the image(s), the coordinates of
+         unique elements in the data array are found by calling ``np.unique``.
         normalize : bool
-         Set to True to obtain a normalized integral. False by default, the
-         absolute integral (sum) is computed.
+         Controls wether we obtain an absolute sum or a normalized integral,
+         the last one being the default setting.
 
         Returns
         -------
@@ -300,7 +299,9 @@ class ModifiedImage(Image):
          to the navigation dimension of the original signal but flattened, if
          the original signal had one.
         '''
-        dst, inv, cts = np.unique(imask, return_inverse=True, return_counts=True)
+        dst, inv, cts = np.unique(bin_mask.data,
+                                  return_inverse=True,
+                                  return_counts=True)
 
         # Complex data support
         if np.iscomplexobj(self.data):
@@ -308,17 +309,31 @@ class ModifiedImage(Image):
         else:
             integrator = integrate_binary_real
 
-        integral_signal = self.map(integrator, inv=inv, inplace=False)
+        integral_signal = self.map(integrator,
+                                   inv=inv,
+                                   inplace=False,
+                                   *args,
+                                   **kwargs)
 
         # Normalization
         if normalize:
             integral_signal.data = integral_signal.data / cts
 
+
+        # Set the axis
         integral_signal.axes_manager.signal_axes[0].axis = dst
+
+        # Also the scales, but beware, the axis is regular only if the mask was!
+        nbins = np.unique(np.round(np.diff(dst), 5)).size
+        if nbins == 1:
+            # regular mask
+            integral_signal.axes_manager.signal_axes[0].offset = dst[0]
+            integral_signal.axes_manager.signal_axes[0].scale  = dst[1] - dst[0]
+
         return integral_signal
 
-    def integrate_radial(self, normalize=True, round_decimals=1, origin=None,
-                         radius=None):
+    def integrate_radial(self, bin_size=None, shifts=None, normalize=True,
+                         radius=None, *args, **kwargs):
         '''
         Integrate the image in a radial mesh. The radial mesh is calculated from
         the pixel coordinates of the image, with an optional translation to the
@@ -328,18 +343,21 @@ class ModifiedImage(Image):
 
         Parameters
         ----------
+        bin_size : None, int, float
+         Bin size for the digitized mesh, in pixel or scaled units depending if
+         an integer or float value is used. By default equal to None, a bin size
+         equal to the pixel size is used. See ```self.get_digitized_radius`` for
+         more information.
+        shifts : None or iterable
+         Shift the origin of the image coordinates according to the given
+         amounts. See ``self.get_digitized_radius``...
         normalize : bool
          Set to True to obtain a normalized integral. False by default, the
-         absolute integral is computed.
-        round_decimals : int
-         Use this parameter to set the rounding. No effect if radius is provided
-        origin : None or list or tuple
-         Use it to specify the origin of coordinates if different than the image
-         centre. Same shape as the signal dimension. No effect if radius is
-         provided.
-        radius : None or numpy array
+         absolute integral is computed. See ``self.get_digitized_radius``...
+        radius : Signal2D
          Use it to specify the coordinates of the image binning. Optional, by
-         default it set to None.
+         default it set to None and this is calculated calling
+         ``self.get_digitized_radius``...
 
         Returns
         -------
@@ -350,19 +368,12 @@ class ModifiedImage(Image):
          original signal had one.
         '''
         if radius is None:
-            Nx, Ny = self.axes_manager.signal_shape
-            if origin is None:
-                # Compute origin
-                origin = (Nx/2., Ny/2.)
+            radius = self.get_digitized_radius(bin_size=bin_size, shifts=shifts)
 
-            # Get radial binary integration mesh
-            x = np.arange(Nx) - origin[0]
-            y = np.arange(Ny) - origin[1]
-
-            radius = np.sqrt(x[None, :]**2. +y[:, None]**2.)
-            radius = np.round(radius, round_decimals)
-
-        radial_integral = self.integrate_binary(radius, normalize)
+        radial_integral = self.integrate_binary(bin_mask=radius,
+                                                normalize=normalize,
+                                                *args,
+                                                **kwargs)
         return radial_integral
 
     def integrate_angular(self, normalize=True, round_decimals=1, origin=None,

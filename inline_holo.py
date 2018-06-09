@@ -332,48 +332,23 @@ class ModifiedImage(Image):
 
         return integral_signal
 
-    def integrate_radial(self, bin_size=None, shifts=None, normalize=True,
-                         radius=None, *args, **kwargs):
+    def integrate_radial(self, *args, **kwargs):
         '''
         Integrate the image in a radial mesh. The radial mesh is calculated from
         the pixel coordinates of the image, with an optional translation to the
-        center. In order to binarize the radial mesh and perform the integration
-        a rounding step is used. Alternative parameters may be provided to use a
-        specific coordinate set.
+        center. Alternative parameters may be provided to use a specific
+        coordinate set. See ``self.get_digitized_radius`` for more information.
 
-        Parameters
-        ----------
-        bin_size : None, int, float
-         Bin size for the digitized mesh, in pixel or scaled units depending if
-         an integer or float value is used. By default equal to None, a bin size
-         equal to the pixel size is used. See ```self.get_digitized_radius`` for
-         more information.
-        shifts : None or iterable
-         Shift the origin of the image coordinates according to the given
-         amounts. See ``self.get_digitized_radius``...
-        normalize : bool
-         Set to True to obtain a normalized integral. False by default, the
-         absolute integral is computed. See ``self.get_digitized_radius``...
-        radius : Signal2D
-         Use it to specify the coordinates of the image binning. Optional, by
-         default it set to None and this is calculated calling
-         ``self.get_digitized_radius``...
+        *args and **kwargs are passed to ``self.get_digitized_radius``.
 
         Returns
         -------
         radial_integral : signal
          With signal dimension axis equal to the radial mesh bins used for the
-         integration and one navigation dimension with size corresponding to the
-         navigation dimension of the original signal but flattened, if the
-         original signal had one.
+         integration and same navigation dimension as the original signal.
         '''
-        if radius is None:
-            radius = self.get_digitized_radius(bin_size=bin_size, shifts=shifts)
-
-        radial_integral = self.integrate_binary(bin_mask=radius,
-                                                normalize=normalize,
-                                                *args,
-                                                **kwargs)
+        radius = self.get_digitized_radius(*args, **kwargs)
+        radial_integral = self.integrate_binary(bin_mask=radius)
         return radial_integral
 
     def integrate_angular(self, normalize=True, round_decimals=1, origin=None,

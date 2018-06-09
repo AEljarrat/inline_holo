@@ -302,29 +302,18 @@ class ModifiedImage(Image):
         '''
         dst, inv, cts = np.unique(imask, return_inverse=True, return_counts=True)
 
-        sdata = self.data.copy()
-
         # Complex data support
-        if np.iscomplexobj(sdata):
+        if np.iscomplexobj(self.data):
             integrator = integrate_binary_comp
         else:
             integrator = integrate_binary_real
 
-        # Multidimensional support, nav axis
-        ndim = self.axes_manager.navigation_dimension
-
-        if ndim == 0:
-            idata = integrator(sdata, inv)
-        else:
-            sdata = sdata.reshape(np.prod(self.axes_manager.navigation_shape),
-                                  *self.axes_manager.signal_shape)
-            idata = [integrator(si, inv) for si in sdata]
+        integral_signal = self.map(integrator, inv=inv, inplace=False)
 
         # Normalization
         if normalize:
-            idata = idata / cts
+            integral_signal.data = integral_signal.data / cts
 
-        integral_signal = Signal(idata)
         integral_signal.axes_manager.signal_axes[0].axis = dst
         return integral_signal
 

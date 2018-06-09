@@ -249,16 +249,18 @@ class ModifiedImage(Image):
         Parameters
         ----------
         bin_size : None, int, float
-         Bin size for the digitized mesh, in pixel or scaled units depending if
-         an integer or float value is used. By default equal to None, a bin size
-         equal to the pixel size is used.
+         Bin size for the digitized mesh, in scaled units when a float number is
+         used. If an int is used, the image is divided into that number of
+         regions. By default equal to None, a bin size equal to the pixel size
+         is used.
         shifts : None or iterable
          Shift the origin of the image coordinates according to the given
          amounts. See ``self.get_real_space`` for more info.
 
         Returns
         -------
-        radius : MI signal
+        radius : Signal2D
+         Digited radius.
         '''
         # self is a HS image
         xx, yy = self.get_real_space(shifts=shifts)
@@ -267,13 +269,49 @@ class ModifiedImage(Image):
         # binarization
         scales = [axi.scale for axi in self.axes_manager.signal_axes]
         if bin_size is None:
-            bin_size  = np.sqrt(np.sum(np.power(scales, 2)))
+            bin_size = np.sqrt(np.sum(np.power(scales, 2)))
         elif type(bin_size) is int:
-            bin_size *= np.sqrt(np.sum(np.power(scales, 2)))
+            bin_size = radius.max() / bin_size
 
         bins = np.arange(radius.min(), radius.max()+1.1*bin_size, bin_size)
         ret = self._get_signal_signal()
         ret.data = bins[np.digitize(radius, bins)]
+        return ret
+
+    def get_digitized_angle(self, bin_size=None, shifts=None):
+        '''
+        Obtain a digitized angular mesh of the image useful for binary counting.
+
+        Parameters
+        ----------
+        bin_size : None, int, float
+         Bin size for the digitized mesh, in scaled units when a float number is
+         used. If an int is used, the image is divided into that number of
+         regions. By default equal to None, a bin size equal to the pixel size
+         is used.
+        shifts : None or iterable
+         Shift the origin of the image coordinates according to the given
+         amounts. See ``self.get_real_space`` for more info.
+
+        Returns
+        -------
+        angle : Signal2D
+         Digitized angle.
+        '''
+        # self is a HS image
+        xx, yy = self.get_real_space(shifts=shifts)
+        angle = np.angle(xx[:, None] + 1j* yy[None,:])
+
+        # binarization
+        scales = [axi.scale for axi in self.axes_manager.signal_axes]
+        if bin_size is None:
+            bin_size = np.sqrt(np.sum(np.power(scales, 2)))
+        elif type(bin_size) is int:
+            bin_size = 2.*np.pi / bin_size
+
+        bins = np.arange(angle.min(), angle.max()+1.1*bin_size, bin_size)
+        ret = self._get_signal_signal()
+        ret.data = bins[np.digitize(angle, bins)]
         return ret
 
     def integrate_binary(self, bin_mask, normalize=True, *args, **kwargs):
@@ -334,16 +372,18 @@ class ModifiedImage(Image):
 
     def integrate_radial(self, *args, **kwargs):
         '''
-        Integrate the image in a radial mesh. The radial mesh is calculated from
+        Integrate the image in a radial mesh. The mesh is calculated from
         the pixel coordinates of the image, with an optional translation to the
-        center. Alternative parameters may be provided to use a specific
-        coordinate set. See ``self.get_digitized_radius`` for more information.
+        center. The integration is performed by binary counting using
+        ``self.integrate_binary``.
 
-        *args and **kwargs are passed to ``self.get_digitized_radius``.
+        Alternative parameters may be provided to use a specific coordinate set.
+        *args and **kwargs are passed to ``self.get_digitized_radial``, for more
+        information see the docs therein.
 
         Returns
         -------
-        radial_integral : signal
+        radial_integral : Signal1D
          With signal dimension axis equal to the radial mesh bins used for the
          integration and same navigation dimension as the original signal.
         '''
@@ -351,53 +391,26 @@ class ModifiedImage(Image):
         radial_integral = self.integrate_binary(bin_mask=radius)
         return radial_integral
 
-    def integrate_angular(self, normalize=True, round_decimals=1, origin=None,
-                          omega=None):
+    def integrate_angular(self, *args, **kwargs):
         '''
-        Integrate the image in an angular mesh. This mesh is calculated from
-        the pixel coordinates of the image, with a translation to the center.
-        In order to binarize the angular mesh and perform the integration a
-        rounding step is used. Alternative parameters may be provided to use a
-        specific coordinate set.
+        Integrate the image in an angular mesh. The mesh is calculated from
+        the pixel coordinates of the image, with an optional translation to the
+        center. The integration is performed by binary counting using
+        ``self.integrate_binary``.
 
-        Parameters
-        ----------
-        normalize : bool
-         Set to True to obtain a normalized integral. False by default, the
-         absolute integral is computed.
-        round_decimals : int
-         Use this parameter to set the rounding. No effect if radius is provided
-        origin : None or list or tuple
-         Use it to specify the origin of coordinates if different than the image
-         centre. Same shape as the signal dimension. No effect if radius is
-         provided.
-        omega : None or numpy array
-         Use it to specify the coordinates of the image binning. Optional, by
-         default it set to None.
+        Alternative parameters may be provided to use a specific coordinate set.
+        *args and **kwargs are passed to ``self.get_digitized_angle``, for more
+        information see the docs therein.
 
         Returns
         -------
-        radial_integral : signal
+        angular_integral : Signal1D
          With signal dimension axis equal to the radial mesh bins used for the
-         integration and one navigation dimension with size corresponding to the
-         navigation dimension of the original signal but flattened, if the
-         original signal had one.
+         integration and same navigation dimension as the original signal.
         '''
-        if omega is None:
-            # Compute origin
-            if origin is None:
-                Nx, Ny = self.axes_manager.signal_shape
-                origin = (Nx/2., Ny/2.)
-
-            # Get angular binary integration mesh
-            x = np.arange(Nx) - origin[0]
-            y = np.arange(Ny) - origin[1]
-
-            omega = np.angle(x[None, :] + 1j* y[:, None])
-            omega = np.round(omega, round_decimals)
-
-        angular_integral = self.integrate_binary(omega, normalize)
-        return angular_integral
+        angle = self.get_digitized_angle(*args, **kwargs)
+        angle_integral = self.integrate_binary(bin_mask=angle)
+        return angle_integral
 
     def plot(self, polar=False, fftshift=False, *erps, **kwerps):
         """

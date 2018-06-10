@@ -36,6 +36,7 @@ import numpy as np
 # hyperspy dependency
 from hyperspy.signals import Signal1D as Signal
 from hyperspy.signals import Signal2D as Image
+from hyperspy.signals import ComplexSignal2D as CImage
 
 # import modules
 from CTFSim import CTFSim
@@ -69,7 +70,7 @@ def integrate_binary_real(sdata, bin_mask, normalize):
         idata = idata / cts
     return idata
 
-def integrate_binary_comp(sdata, inv):
+def integrate_binary_comp(sdata, bin_mask, normalize):
     '''
     Binarized counting integral. For complex valued datasets.
     sdata and inv have the same dimensions.
@@ -106,8 +107,17 @@ class ModifiedImage(Image):
     multi-focus holography algorithms, such as transport of intensity equation
     and gradient-flipping.
     """
-    def __init__(self, *erps, **kw):
-        Image.__init__(self, *erps, **kw)
+    def __init__(self, *args, **kwargs):
+        """
+        If a hyperspy.signal is given, it is transformed into a ModifiedImage.
+        In that case, additional *args and **kwargs are discarded.
+        """
+        if len(args) > 0 and isinstance(args[0], Image):
+            # Pretend it is a hs signal, copy axes and metadata
+            sdict = args[0]._to_dictionary()
+            Image.__init__(self, **sdict)
+        else:
+            Image.__init__(self, *args, **kwargs)
 
     def set_padding(self, pad_width=None, *erps, **kw):
         """
@@ -430,50 +440,6 @@ class ModifiedImage(Image):
         angle_integral = self.integrate_binary(bin_mask=angle, *args, **kwargs)
         return angle_integral
 
-    def plot(self, polar=False, fftshift=False, *erps, **kwerps):
-        """
-        A bad cover version of Image.plot method, useful to produce two images
-        when data is a complex image.
-
-        Parameters
-        ----------
-        polar : bool
-         Controls whether polar or cartesian representation is used. It is set
-         to cartesian (False) by defect.
-        fftshift : bool
-         Will use "np.fft.fftshift" on the image dimensions prior to plot. Unset
-         (False) by defect.
-        *erps, **kwerps are passed to Image.plot.
-        """
-        if fftshift:
-            s = self.deepcopy()
-            s.data = np.fft.fftshift(self.data, (-2,-1))
-        else:
-            s = self
-        if np.iscomplexobj(s.data):
-            if polar:
-                amp = s.deepcopy()
-                amp.data = np.absolute(s.data)
-                amp.metadata.General.title += ', Modulus'
-                Image.plot(amp, *erps, **kwerps)
-
-                arg = s.deepcopy()
-                arg.data = np.angle(s.data)
-                arg.metadata.General.title += ', Argument'
-                Image.plot(arg, *erps, **kwerps)
-            else:
-                real = s.deepcopy()
-                real.data = np.real(s.data)
-                real.metadata.General.title += ', real part'
-                Image.plot(real, *erps, **kwerps)
-
-                imag = s.deepcopy()
-                imag.data = np.imag(s.data)
-                imag.metadata.General.title += ', imag part'
-                Image.plot(imag, *erps, **kwerps)
-        else:
-            Image.plot(s, *erps, **kwerps)
-
     def get_contrast_transfer(self, defoci=None, angles=None, wlen=None,
                               nref=None, NA=None, fsmooth=None):
         """
@@ -642,6 +608,29 @@ class ModifiedImage(Image):
             ctf.metadata.set_item('ModImage.astigmatic_defocus', defoci.squeeze())
 
         return ctf
+
+class ComplexModifiedImage(ModifiedImage, CImage):
+    """
+    Modification of the hyperspy Image class that adapts to the needs of focal
+    series theoretical and experimental analysis. It contains methods that
+    seamlessly adapt hyperspy Image-Objects to numpy pad functionality. A method
+    to generate a CTF based on a non-linear imaging model compatible with
+    Rayleigh integral formulation (high numerical apertures and refractive
+    indices other than 1). It contains simple methods that allow to test in-line
+    multi-focus holography algorithms, such as transport of intensity equation
+    and gradient-flipping.
+    """
+    def __init__(self, *args, **kwargs):
+        """
+        If a hyperspy.signal is given, it is transformed into a ModifiedImage.
+        In that case, additional *args and **kwargs are discarded.
+        """
+        if len(args) > 0 and isinstance(args[0], (Image, CImage)):
+            # Pretend it is a hs signal, copy axes and metadata
+            sdict = args[0]._to_dictionary()
+            CImage.__init__(self, **sdict)
+        else:
+            CImage.__init__(self, *args, **kwargs)
 
 # Useful routines for loading data
 def numpy2ModI(npdata, dsig=(1., 1.), osig=(0., 0.), dnav=(1., ), onav=(0., )):

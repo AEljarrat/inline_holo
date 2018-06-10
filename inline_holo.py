@@ -180,16 +180,19 @@ class ModifiedImage(Image):
             s.axes_manager.navigation_axes[0].axis = self.axes_manager.navigation_axes[0].axis.copy()
         return s
 
-    def get_real_space(self, shifts=None):
+    def get_real_space(self, shifted=True, shifts=None):
         """
         Returns the real space coordinate vectors for this image.
 
         Parameters
         ----------
+        shifted : bool
+         If True, shift the coordinates so that the origin lies on the middle.
+         This is the default behavior.
         shifts : None or iterable
-         Shift the image coordinates according to the given amounts, in pixel
-         or scaled units depending if an int or float value are used. By default
-         equal to None, the origin set by the axes_manager is used.
+         Additionally shift the image coordinates according to the given amounts
+         in pixel or scaled units depending if an int or float value are used.
+         By default equal to None, the origin set by shifted parameter is used.
 
         Returns
         -------
@@ -198,7 +201,9 @@ class ModifiedImage(Image):
         """
         scales = [axi.scale for axi in self.axes_manager.signal_axes]
         coords = [axi.axis.copy() for axi in self.axes_manager.signal_axes]
-
+        if shifted:
+            for io in range(2):
+                coords[io] -= coords[io].max()*0.5
         if shifts is not None:
             shifts = list(shifts)
             if not len(shifts) == 2:
@@ -252,7 +257,7 @@ class ModifiedImage(Image):
             else:
                 raise ValueError('Parameter retstr not recognized: '+retstr)
 
-    def get_digitized_radius(self, bin_size=None, shifts=None):
+    def get_digitized_radius(self, bin_size=None, *args, **kwargs):
         '''
         Obtain a digitized radial mesh of the image useful for binary counting.
 
@@ -263,9 +268,8 @@ class ModifiedImage(Image):
          used. If an int is used, the image is divided into that number of
          regions. By default equal to None, a bin size equal to the pixel size
          is used.
-        shifts : None or iterable
-         Shift the origin of the image coordinates according to the given
-         amounts. See ``self.get_real_space`` for more info.
+
+        *args, **kwargs passed to ``self.get_real_space``.
 
         Returns
         -------
@@ -273,7 +277,7 @@ class ModifiedImage(Image):
          Digited radius.
         '''
         # self is a HS image
-        xx, yy = self.get_real_space(shifts=shifts)
+        xx, yy = self.get_real_space(*args, **kwargs)
         radius = np.sqrt(xx[None, :]**2. + yy[:, None]**2.)
 
         # binarization
@@ -288,7 +292,7 @@ class ModifiedImage(Image):
         ret.data = bins[np.digitize(radius, bins)]
         return ret
 
-    def get_digitized_angle(self, bin_size=None, shifts=None):
+    def get_digitized_angle(self, bin_size=None, *args, **kwargs):
         '''
         Obtain a digitized angular mesh of the image useful for binary counting.
 
@@ -299,9 +303,8 @@ class ModifiedImage(Image):
          used. If an int is used, the image is divided into that number of
          regions. By default equal to None, a bin size equal to the pixel size
          is used.
-        shifts : None or iterable
-         Shift the origin of the image coordinates according to the given
-         amounts. See ``self.get_real_space`` for more info.
+
+        *args, **kwargs passed to ``self.get_real_space``.
 
         Returns
         -------
@@ -309,7 +312,7 @@ class ModifiedImage(Image):
          Digitized angle.
         '''
         # self is a HS image
-        xx, yy = self.get_real_space(shifts=shifts)
+        xx, yy = self.get_real_space(*args, **kwargs)
         angle = np.angle(xx[None, :] + 1j* yy[:, None])
 
         # binarization
@@ -338,6 +341,8 @@ class ModifiedImage(Image):
         normalize : bool
          Controls wether we obtain an absolute sum or a normalized integral,
          the last one being the default setting.
+
+        *args, **kwargs are passed to the `self.map`` function.
 
         Returns
         -------
@@ -377,7 +382,8 @@ class ModifiedImage(Image):
 
         return integral_signal
 
-    def integrate_radial(self, bin_size=None, shifts=None, *args, **kwargs):
+    def integrate_radial(self, bin_size = None, shifted = True, shifts = None,
+                         *args, **kwargs):
         '''
         Integrate the image in a radial mesh. The mesh is calculated from
         the pixel coordinates of the image, with an optional translation to the
@@ -394,11 +400,14 @@ class ModifiedImage(Image):
          With signal dimension axis equal to the radial mesh bins used for the
          integration and same navigation dimension as the original signal.
         '''
-        radius = self.get_digitized_radius(bin_size=bin_size, shifts=shifts)
+        radius = self.get_digitized_radius(bin_size = bin_size,
+                                           shifted  = shifted,
+                                           shifts   = shifts)
         radial_integral = self.integrate_binary(bin_mask=radius,*args,**kwargs)
         return radial_integral
 
-    def integrate_angular(self, bin_size=None, shifts=None, *args, **kwargs):
+    def integrate_angular(self, bin_size = None, shifted = True, shifts = None,
+                         *args, **kwargs):
         '''
         Integrate the image in an angular mesh. The mesh is calculated from
         the pixel coordinates of the image, with an optional translation to the
@@ -415,7 +424,9 @@ class ModifiedImage(Image):
          With signal dimension axis equal to the radial mesh bins used for the
          integration and same navigation dimension as the original signal.
         '''
-        angle = self.get_digitized_angle(bin_size=bin_size, shifts=shifts)
+        angle = self.get_digitized_angle(bin_size = bin_size,
+                                         shifted  = shifted,
+                                         shifts   = shifts)
         angle_integral = self.integrate_binary(bin_mask=angle, *args, **kwargs)
         return angle_integral
 

@@ -353,10 +353,11 @@ class ModifiedImage(Image):
                                    *args,
                                    **kwargs)
 
+        integral_signal = Signal(integral_signal.data)
+
         # Normalization
         if normalize:
             integral_signal.data = integral_signal.data / cts
-
 
         # Set the axis
         integral_signal.axes_manager.signal_axes[0].axis = dst

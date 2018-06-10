@@ -274,7 +274,7 @@ class ModifiedImage(Image):
         '''
         # self is a HS image
         xx, yy = self.get_real_space(shifts=shifts)
-        radius = np.sqrt(xx[:, None]**2. + yy[None,:]**2.)
+        radius = np.sqrt(xx[None, :]**2. + yy[:, None]**2.)
 
         # binarization
         scales = [axi.scale for axi in self.axes_manager.signal_axes]
@@ -310,7 +310,7 @@ class ModifiedImage(Image):
         '''
         # self is a HS image
         xx, yy = self.get_real_space(shifts=shifts)
-        angle = np.angle(xx[:, None] + 1j* yy[None,:])
+        angle = np.angle(xx[None, :] + 1j* yy[:, None])
 
         # binarization
         scales = [axi.scale for axi in self.axes_manager.signal_axes]

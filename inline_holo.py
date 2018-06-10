@@ -370,16 +370,16 @@ class ModifiedImage(Image):
 
         return integral_signal
 
-    def integrate_radial(self, *args, **kwargs):
+    def integrate_radial(self, bin_size=None, shifts=None, *args, **kwargs):
         '''
         Integrate the image in a radial mesh. The mesh is calculated from
         the pixel coordinates of the image, with an optional translation to the
         center. The integration is performed by binary counting using
-        ``self.integrate_binary``.
+        ``self.integrate_binary``. Optional parameters may be provided to use a
+        specific coordinate set, see the documentation in this method.
 
-        Alternative parameters may be provided to use a specific coordinate set.
-        *args and **kwargs are passed to ``self.get_digitized_radial``, for more
-        information see the docs therein.
+        *args and **kwargs are passed to ``self.get_digitized_radius``, for more
+        information see also the docs therein.
 
         Returns
         -------
@@ -387,20 +387,20 @@ class ModifiedImage(Image):
          With signal dimension axis equal to the radial mesh bins used for the
          integration and same navigation dimension as the original signal.
         '''
-        radius = self.get_digitized_radius(*args, **kwargs)
-        radial_integral = self.integrate_binary(bin_mask=radius)
+        radius = self.get_digitized_radius(bin_size=bin_size, shifts=shifts)
+        radial_integral = self.integrate_binary(bin_mask=radius,*args,**kwargs)
         return radial_integral
 
-    def integrate_angular(self, *args, **kwargs):
+    def integrate_angular(self, bin_size=None, shifts=None, *args, **kwargs):
         '''
         Integrate the image in an angular mesh. The mesh is calculated from
         the pixel coordinates of the image, with an optional translation to the
         center. The integration is performed by binary counting using
-        ``self.integrate_binary``.
+        ``self.integrate_binary``. Optional parameters may be provided to use a
+        specific coordinate set, see the documentation in this method.
 
-        Alternative parameters may be provided to use a specific coordinate set.
         *args and **kwargs are passed to ``self.get_digitized_angle``, for more
-        information see the docs therein.
+        information see also the docs therein.
 
         Returns
         -------
@@ -408,8 +408,8 @@ class ModifiedImage(Image):
          With signal dimension axis equal to the radial mesh bins used for the
          integration and same navigation dimension as the original signal.
         '''
-        angle = self.get_digitized_angle(*args, **kwargs)
-        angle_integral = self.integrate_binary(bin_mask=angle)
+        angle = self.get_digitized_angle(bin_size=bin_size, shifts=shifts)
+        angle_integral = self.integrate_binary(bin_mask=angle, *args, **kwargs)
         return angle_integral
 
     def plot(self, polar=False, fftshift=False, *erps, **kwerps):

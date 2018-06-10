@@ -44,7 +44,7 @@ from GPTIE import GPTIE
 from GS import GS
 
 # Useful routines for binary integration
-def integrate_binary_real(sdata, inv):
+def integrate_binary_real(sdata, bin_mask, normalize):
     '''
     Binarized counting integral. For real valued datasets.
     sdata and inv have the same dimensions.
@@ -61,7 +61,12 @@ def integrate_binary_real(sdata, inv):
     idata : numpy array
      The integral result.
     '''
+    dst, inv, cts = np.unique(bin_mask.data,
+                              return_inverse=True,
+                              return_counts=True)
     idata = np.bincount(inv, weights=sdata.ravel())
+    if normalize:
+        idata = idata / cts
     return idata
 
 def integrate_binary_comp(sdata, inv):
@@ -81,8 +86,13 @@ def integrate_binary_comp(sdata, inv):
     idata : numpy array
      The integral result.
     '''
+    dst, inv, cts = np.unique(bin_mask.data,
+                              return_inverse=True,
+                              return_counts=True)
     idata = np.bincount(inv, weights=sdata.real.ravel()) + \
             1j * np.bincount(inv, weights=sdata.imag.ravel())
+    if normalize:
+        idata = idata / cts
     return idata
 
 class ModifiedImage(Image):
@@ -337,10 +347,6 @@ class ModifiedImage(Image):
          to the navigation dimension of the original signal but flattened, if
          the original signal had one.
         '''
-        dst, inv, cts = np.unique(bin_mask.data,
-                                  return_inverse=True,
-                                  return_counts=True)
-
         # Complex data support
         if np.iscomplexobj(self.data):
             integrator = integrate_binary_comp
@@ -348,26 +354,26 @@ class ModifiedImage(Image):
             integrator = integrate_binary_real
 
         integral_signal = self.map(integrator,
-                                   inv=inv,
+                                   bin_mask=bin_mask,
+                                   normalize=normalize,
                                    inplace=False,
                                    *args,
                                    **kwargs)
 
         integral_signal = Signal(integral_signal.data)
 
-        # Normalization
-        if normalize:
-            integral_signal.data = integral_signal.data / cts
+        if bin_mask.axes_manager.navigation_dimension == 0:
+            # We can set the axis, in other cases the signal could be ragged
+            dst = np.unique(bin_mask.data)
+            integral_signal.axes_manager.signal_axes[0].axis = dst
 
-        # Set the axis
-        integral_signal.axes_manager.signal_axes[0].axis = dst
-
-        # Also the scales, but beware, the axis is regular only if the mask was!
-        nbins = np.unique(np.round(np.diff(dst), 5)).size
-        if nbins == 1:
-            # regular mask
-            integral_signal.axes_manager.signal_axes[0].offset = dst[0]
-            integral_signal.axes_manager.signal_axes[0].scale  = dst[1] - dst[0]
+            # Set the scales only if the mask bins were regular
+            nbins = np.unique(np.round(np.diff(dst), 5)).size
+            if nbins == 1:
+                # regular mask
+                integral_signal.axes_manager.signal_axes[0].offset = dst[0]
+                integral_signal.axes_manager.signal_axes[0].scale  = \
+                                                                 dst[1] - dst[0]
 
         return integral_signal
 

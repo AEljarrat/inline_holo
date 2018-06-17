@@ -32,8 +32,10 @@ No commercial use or modification of this code
 is allowed without permission of the authors.
 """
 import numpy as np
+from numbers import Number
 
 # hyperspy dependency
+from hyperspy.signals import BaseSignal
 from hyperspy.signals import Signal1D as Signal
 from hyperspy.signals import Signal2D as Image
 from hyperspy.signals import ComplexSignal2D as CImage
@@ -43,6 +45,9 @@ from CTFSim import CTFSim
 from MFTIE import MFTIE
 from GPTIE import GPTIE
 from GS import GS
+
+# for padding
+pad_str = 'Signal.pad_width'
 
 # Useful routines for binary integration
 def integrate_binary_real(sdata, bin_mask, normalize):
@@ -96,7 +101,90 @@ def integrate_binary_comp(sdata, bin_mask, normalize):
         idata = idata / cts
     return idata
 
-class ModifiedImage(Image):
+# Useful for padding
+def _pad(arr, pad_width, mode, **kwargs):
+    return np.pad(arr, pad_width, mode, **kwargs)
+
+class ModifiedSignal(BaseSignal):
+    def __init__(self, *args, **kwargs):
+        """
+        If a hyperspy signal is given, it is transformed into a ModifiedSignal.
+        In that case, additional *args and **kwargs are discarded.
+        """
+        if len(args) > 0 and isinstance(args[0], BaseSignal):
+            # Pretend it is a hs signal, copy axes and metadata
+            sdict = args[0]._to_dictionary()
+            self.__class__.__init__(self, **sdict)
+        else:
+            BaseSignal.__init__(self, *args, **kwargs)
+
+    def set_pad(self, pad_width=None, mode='reflect', **kwargs):
+        '''
+        Supports numpy integer array input.
+        Supports tuple and list input also with single value float.
+        '''
+        # TODO: support single value percent
+        if pad_width is None:
+            return self.deepcopy()
+
+        if isinstance(pad_width, np.ndarray):
+            pad_arr = pad_width.astype(np.int)
+        elif not isinstance(pad_width, np.ndarray):
+            pad_arr = np.array(pad_width, np.int)
+
+        Nsig = self.axes_manager.signal_dimension
+        if len(pad_arr) > Nsig:
+            raise ValueError('pad_width too long for signal with dimension = '+str(Nsig))
+        elif pad_arr.ndim == 1:
+            pad_arr = pad_arr[:,None]
+        elif pad_arr.ndim > 2:
+            raise ValueError('pad_width too long, only 1 or 2 per signal axis are accepted')
+
+        # float inputs are transformed to pixel using axis scale
+        # indices in array of the signal axes are recorded
+        io = 0
+        indices = []
+        for pw, ax in zip(pad_width, self.axes_manager.signal_axes):
+            if isinstance(pw, float):
+                pad_arr[io] = np.int(pw / ax.scale)
+            indices += [ax.index_in_array,]
+            io += 1
+
+        out = self.map(_pad,
+                       pad_width=pad_arr[np.argsort(indices)],
+                       mode=mode,
+                       inplace=False,
+                       show_progressbar=False,
+                       **kwargs)
+        out.metadata.set_item(pad_str, pad_arr)
+        return out
+
+    def remove_pad(self, **kwargs):
+        if self.metadata.has_item(pad_str):
+            pad_width = self.metadata.get_item(pad_str)
+        else:
+            return self
+        Nsig = self.axes_manager.signal_dimension
+        if len(pad_width) > Nsig:
+            raise ValueError('pad_width too long for signal with dimension = '+str(Nsig))
+
+        # pad array transformed into tuple of slice objects
+        io = 0
+        slicers = [slice(None) for ax in self.axes_manager.signal_axes]
+        for pi, ax in zip(pad_width, self.axes_manager.signal_axes):
+            if len(pi) == 1:
+                pi = np.array((pi[0], pi[0]))
+            if pi[0] != 0 and pi[1] != 0:
+                a = ax._get_array_slices(pi[0])
+                b = ax._get_array_slices(-pi[1])
+                slicers[io] = slice(a.start, b.stop-1)
+            io += 1
+        slicers = tuple(slicers)
+        out = self.isig[slicers]
+        del out.metadata.Signal.pad_width
+        return out
+
+class ModifiedImage(Image, ModifiedSignal):
     """
     Modification of the hyperspy Image class that adapts to the needs of focal
     series theoretical and experimental analysis. It contains methods that
@@ -109,7 +197,7 @@ class ModifiedImage(Image):
     """
     def __init__(self, *args, **kwargs):
         """
-        If a hyperspy.signal is given, it is transformed into a ModifiedImage.
+        If a hyperspy Signal2D is given, it is transformed into a ModifiedImage.
         In that case, additional *args and **kwargs are discarded.
         """
         if len(args) > 0 and isinstance(args[0], Image):

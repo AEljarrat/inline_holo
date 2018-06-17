@@ -131,11 +131,14 @@ class ModifiedSignal(BaseSignal):
         ----------
         pad_width : {tuple, list, ndarray}
          Series of values added to the edges of each axis, with the generic
-         shape ((before, after),...), to add integer pad widths for each axis. A
-         single value, (pad,), is a shortcut for before = after = pad width for
-         this axis. This single value may be a float number and the number of
-         pixels added will be scaled using the axis information. A value of zero
-         may be used to leave an axis unchanged and pad the following.
+         shape ((before, after),...), to add integer pad widths for each axis.
+         A pair of values should be provided for each signal axis, or just one,
+         meaning same padding for all axes. Alternatively, a single value may be
+         used, (pad,), which is a shortcut for before = after = pad width for
+         each axis. This single value may be a float number and the number of
+         pixels added will be scaled using the axis information. The values of
+         (0, 0) or (0,) may be used to leave an axis unchanged and pad the
+         following.
         mode : string
          This parameter and **kwargs are passed to the pad method from numpy
          through the map method of this signal. This allows passing parameters
@@ -266,6 +269,7 @@ class ModifiedImage(Image, ModifiedSignal):
 
     def set_padding(self, pad_width=None, *erps, **kw):
         """
+        Deprecated! use set_pad instead.
         Pad a hyperspy Image of navigation dimension <= 1. This is a wrapper for
         numpy.pad function. Additionally, as the padding information is stored
         in metadata, it is possible to reverse the effect of this function with
@@ -316,6 +320,8 @@ class ModifiedImage(Image, ModifiedSignal):
         """
         This method returns an un-padded copy of a padded Image by reading the
         value from metadata. See the set_padding function for more information.
+        Note the set_pad method and unset_padding are Deprecated in favor of
+        set_pad.
         """
         if self.metadata.Signal.has_item('pad_tuple'):
             Npy, Npx = self.metadata.Signal.pad_tuple

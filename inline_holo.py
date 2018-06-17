@@ -120,8 +120,50 @@ class ModifiedSignal(BaseSignal):
 
     def set_pad(self, pad_width=None, mode='reflect', **kwargs):
         '''
-        Supports numpy integer array input.
-        Supports tuple and list input also with single value float.
+        Add padding to a the signal axes using the pad method from numpy. All
+        parameters are passed to this method and in that sense this function
+        behaves as a simple wrapper. However, some multidimensional
+        functionality has been included, as explained below. Most importantly,
+        the pad_width information is stored in the signal metadata, making it
+        possible to reverse the effect of this function the remove_pad method.
+
+        Parameters
+        ----------
+        pad_width : {tuple, list, ndarray}
+         Series of values added to the edges of each axis, with the generic
+         shape ((before, after),...), to add integer pad widths for each axis. A
+         single value, (pad,), is a shortcut for before = after = pad width for
+         this axis. This single value may be a float number and the number of
+         pixels added will be scaled using the axis information. A value of zero
+         may be used to leave an axis unchanged and pad the following.
+        mode : string
+         This parameter and **kwargs are passed to the pad method from numpy
+         through the map method of this signal. This allows passing parameters
+         for the padding as separate signals. More information in those docs.
+
+        Returns
+        -------
+        pad_signal: HyperSpy signal
+         A copy of the input signal but with a number of padded pixels. The pad
+         information is stored in metadata.
+
+        See also
+        --------
+        remove_pad, map
+
+        Examples
+        --------
+        With a Signal1D
+        >>> spc = hs.signals.Signal1D(np.random.rand(5, 5, 512))
+        >>> spc = MS(spc)
+        >>> spc_pad = spc.set_pad(((50, 100),), 'constant', constant_values=0)
+        >>> spc_bis = spc_pad.remove_pad()
+
+        With a Signal2D:
+        >>> img = MI(np.random.rand(3, 800, 600))
+        >>> cvals = hs.signals.BaseSignal([1., 0.5, 0.0])
+        >>> img_pad = img.set_pad((50, 50.), 'constant', constant_values=cvals.T)
+        >>> img_bis = img_pad.remove_pad()
         '''
         # TODO: support single value percent
         if pad_width is None:
@@ -159,7 +201,22 @@ class ModifiedSignal(BaseSignal):
         out.metadata.set_item(pad_str, pad_arr)
         return out
 
-    def remove_pad(self, **kwargs):
+    def remove_pad(self):
+        '''
+        Remove the padding added to the signal using the set_pad method. It
+        reads the pad_width information stored in the Signal metadata, making it
+        possible to reverse the effect of the last call to the set_pad method.
+
+        Returns
+        -------
+        out_signal: HyperSpy signal
+         A copy of the input signal but with a number of pixels removed from the
+         signal axes.
+
+        See also
+        --------
+        set_pad, map
+        '''
         if self.metadata.has_item(pad_str):
             pad_width = self.metadata.get_item(pad_str)
         else:

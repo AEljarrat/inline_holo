@@ -230,17 +230,23 @@ class ModifiedSignal(BaseSignal):
 
         # pad array transformed into tuple of slice objects
         io = 0
+        sum_up = []
         slicers = [slice(None) for ax in self.axes_manager.signal_axes]
-        for pi, ax in zip(pad_width, self.axes_manager.signal_axes):
-            if len(pi) == 1:
-                pi = np.array((pi[0], pi[0]))
-            if pi[0] != 0 and pi[1] != 0:
-                a = ax._get_array_slices(pi[0])
-                b = ax._get_array_slices(-pi[1])
+        for pw, ax in zip(pad_width, self.axes_manager.signal_axes):
+            if len(pw) == 1:
+                pw = np.array((pw[0], pw[0]))
+            if pw[0] != 0 and pw[1] != 0:
+                a = ax._get_array_slices(pw[0])
+                b = ax._get_array_slices(-pw[1])
                 slicers[io] = slice(a.start, b.stop-1)
+                sum_up += [a.start*ax.scale,] # later we reset the axis offset
+            else:
+                sum_up = [0.,]
             io += 1
         slicers = tuple(slicers)
         out = self.isig[slicers]
+        for io, pw in enumerate(sum_up):
+            out.axes_manager.signal_axes[io].offset -= pw
         del out.metadata.Signal.pad_width
         return out
 

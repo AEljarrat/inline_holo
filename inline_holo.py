@@ -1076,7 +1076,7 @@ class validation():
         rmse_kl = ModifiedImage(rmse_fourier)
         return rmse_ij, rmse_kl
 
-    def run_fourier_ring_correlation(self, silent_run=False, d2d=False):
+    def run_fourier_ring_correlation(self, bin_size=None):
         """
         Perform Fourier ring correlation (FRC) test. At the time, only the FRC
         for 2D images has been implemented. Because this algorithm uses FFT to
@@ -1085,9 +1085,10 @@ class validation():
 
         Parameters
         ----------
-        d2d : bool
-         Set to True to obtain an image with the ring values in reciprocal space
-         that could be useful for plotting.
+        bin_size : {None, int, float}
+         Sets the size of each bin in the digital image of the reciprocal
+         distance modulus used for the radial integration in the Fourier space.
+         This parameter is passed to the ``integrate_radial`` method.
 
         Returns
         -------
@@ -1096,56 +1097,29 @@ class validation():
 
         """
         # This is done in the fourier plane
-        exp_ft = np.fft.fft2(self.exp.data)
-        obs_ft = np.fft.fft2(self.obs.data)
+        exp_ft = self.exp.fft(True)
+        obs_ft = self.obs.fft(True)
 
         # Get correlations
-        exp_obs_cc = np.real(exp_ft * obs_ft.conj())
-        exp_sc = np.abs(exp_ft)**2
-        obs_sc = np.abs(obs_ft)**2
+        axdict = obs_ft.axes_manager.as_dictionary()
+        axdict = [axdict[keys] for keys in axdict.keys()]
+        exp_obs_xc = ModifiedImage(np.real(obs_ft * np.conj(exp_ft)), axes=axdict)
+        obs_ac     = ModifiedImage(obs_ft.amplitude**2, axes=axdict)
 
-        # Binarize the spatial frequencies
-        # using rings at the same distances
-        # in fourier space (esoteric way, like ModifiedImage.integrate_radial
-        # but taking fftshift into account)
+        axdict = exp_ft.axes_manager.as_dictionary()
+        axdict = [axdict[keys] for keys in axdict.keys()]
+        exp_ac = ModifiedImage(exp_ft.amplitude**2, axes=axdict)
 
-        N = exp_ft.shape
-        dist_x, dist_y = [np.minimum(np.arange(Ni), np.arange(Ni, 0, -1))
-                          for Ni in N]
-        dist_x *= dist_x
-        dist_y *= dist_y
-        # Distances in 2D-Fourier space
-        dist_2d = np.sqrt(dist_x[:, None] + dist_y)
-        dist_2d = np.round(dist_2d)
-        # Binning and calculation
-        distances, inv = np.unique(dist_2d, return_inverse=True)
-        xcorr = np.bincount(inv, weights = exp_obs_cc.real.ravel())
-        selfcorr  = np.bincount(inv, weights = exp_sc.ravel())
-        selfcorr1 = np.bincount(inv, weights = obs_sc.ravel())
-        FSC = xcorr / np.sqrt(selfcorr*selfcorr1)
-        # Generate output
-        self.frc = Signal(FSC)
-        k2 = self.obs.get_fourier_space()
-        self.frc.axes_manager[0].scale = np.sqrt(k2[0,1])
-        self.frc.axes_manager[0].offset = 0.
-        self.frc.get_dimensions_from_data()
-        self.frc.metadata.General.title = 'FRC'
-        # Save also the distances
-        self.frc_d2d = ModifiedImage(np.fft.fftshift(dist_2d))
-        if not silent_run:
-            if not d2d:
-                return self.frc
-            else:
-                return self.frc, self.frc_d2d
+        xc  = exp_obs_xc.integrate_radial(bin_size=bin_size, shifted=False, show_progressbar=False)
+        ac1 = exp_ac.integrate_radial(bin_size=bin_size, shifted=False, show_progressbar=False)
+        ac2 = obs_ac.integrate_radial(bin_size=bin_size, shifted=False, show_progressbar=False)
 
-# TODO: implement FRC using digitized width
-""""
-width = 1.
-bins = np.arange(q.min(), q.max(), width)
-idx = np.digitize(q, bins)
-dst, inv, cts = np.unique(idx, return_inverse=True, return_counts=True)
-...
-"""
+        fsc = xc / np.sqrt(ac1*ac2)
+
+        fsc.axes_manager[-1].units = obs_ft.axes_manager[-1].units
+        fsc.axes_manager[-1].name  = r'|q| = |1/r|'
+
+        return fsc
 
 # Useful routines for validation
 def fs_validation(fs, phase, amplitude, init_wave=None, alpha=None):

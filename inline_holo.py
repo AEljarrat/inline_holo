@@ -366,11 +366,16 @@ class ModifiedImage(Image, ModifiedSignal):
         coords : list
          With two values.
         """
-        scales = [axi.scale for axi in self.axes_manager.signal_axes]
-        coords = [axi.axis.copy() for axi in self.axes_manager.signal_axes]
+        scales, offsets, coords = [], [], []
+        for axi in self.axes_manager.signal_axes:
+            scales  += [axi.scale,]
+            offsets += [axi.offset,]
+            coords  += [axi.coords,]
+
         if shifted:
             for io in range(2):
-                coords[io] -= coords[io].max()*0.5
+                ax_shift = coords[io] - offset[io]
+                coords[io] -= ax_shift - 0.5 * ax_shift.max()
         if shifts is not None:
             shifts = list(shifts)
             if not len(shifts) == 2:

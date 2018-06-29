@@ -370,12 +370,12 @@ class ModifiedImage(Image, ModifiedSignal):
         for axi in self.axes_manager.signal_axes:
             scales  += [axi.scale,]
             offsets += [axi.offset,]
-            coords  += [axi.coords,]
+            coords  += [axi.axis.copy(),]
 
         if shifted:
             for io in range(2):
-                ax_shift = coords[io] - offset[io]
-                coords[io] -= ax_shift - 0.5 * ax_shift.max()
+                ax_shift = coords[io] - offsets[io]
+                coords[io] -= 0.5 * ax_shift.max()
         if shifts is not None:
             shifts = list(shifts)
             if not len(shifts) == 2:

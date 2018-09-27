@@ -44,3 +44,10 @@ def add_noise_gauss(data, SNR, seed=None):
     sigma_snr = mean_signal / 10.**(SNR/10.)
     noise = np.random.normal(0., sigma_snr, np.prod(N)).reshape(N)
     return noise
+
+def add_noise_poiss(data, SNR, seed=None):
+    # determine number of counts depending on SNR
+    Nsnr = np.exp(SNR/5.) / data.mean()
+    # random name generator baby
+    rs=np.random.RandomState(seed=seed)
+    return rs.poisson(data * Nsnr) / Nsnr

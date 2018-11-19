@@ -174,7 +174,7 @@ class GS():
         This method returns the current phase, with or without padding depending
         on a boolean parameter unpad.
         """
-        new_phase = self.new_phase.deepcopy()
+        new_phase = self.new_wave.deepcopy()
         if self.using_gpu:
             new_phase.data = self.phase_data.get()
         else:

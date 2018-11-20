@@ -15,3 +15,9 @@ Usage
 from inline_holo import *
 ```
 Also, the provided jupyter notebook `Simulated_dataset.ipynb` can be used to learn how to use the code in a simulated dataset example.
+
+Citing
+------
+If you find this software useful, especially the simulation and holographic reconstruction algorithms, we ask you to cite our research paper,
+
+https://doi.org/10.1364/OE.26.011819

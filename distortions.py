@@ -84,10 +84,15 @@ def _get_unit_circle(N=64, fill_value=np.nan):
     phi[outside] = fill_value
     return rho, phi
 
-class Distortions():
+class Distortion():
     """
     Distortion polynomial module
     ----------------------------
+    For Zernike-like distortions. These transforms are described as a polynomial
+    expansion using polar coordinates. The polynomials are determined by a
+    radial and accimuthal index. The indices follow a triangular distribution,
+    which is bound to some selection rules. This is described in detail in the
+    documentation of the `~.set_coefficients` method.
 
     """
     def __init__(self, *args, **kwargs):
@@ -101,7 +106,7 @@ class Distortions():
         ... 'A00' : 1+1j, 'B11' : 1+1j, 'A11' : 1+1j, 'B22' : 1+1j,
         ... 'A20' : 1+1j, 'A22' : 1+1j, 'B33' : 1+1j, 'B31' : 1+1j,
         ... 'A31' : 1+1j, 'A33' : 1+1j}
-        > kdist = Krivanek(**kwdist)
+        > kdist = Distortions(**kwdist)
         """
 
         self._coeffs = {}
@@ -111,6 +116,39 @@ class Distortions():
         # TODO: format string
         out = self.get_coefficients()
         return out.__repr__()
+
+    def __call__(self, image=None, *args, **kwargs):
+        """
+        Using the current polynomial expansion, calling will either project the
+        displacement in the unit circle, or to a provided image, distorting it.
+
+        Parameters
+        ----------
+        image : {None, hyperspy Signal2D}
+         A hyperspy image to be distorted. If None is provided, the distortion
+         displacement is projected into the unit circle. Depending on this input
+         *args, **kwargs are passed to `_get_unit_circle` function or to the
+         `~._distort_image` method.
+
+        Returns
+        -------
+        out : hyperspy Signal2D
+         If no image was provided, a complex signal, with the X and Y
+         displacement is returned. In the other case, a distorted image is
+         returned.
+        """
+
+        if image is None:
+
+            # show displacements in the unit circle
+            rho, phi = _get_unit_circle(*args, **kwargs)
+            D = self._get_displacement(rho, phi)
+            return ComplexSignal2D(D)
+
+        # apply distortions to this image
+        new_img_data = self._distort_image(image, *args, **kwargs)
+
+        return image.__class__(new_img_data)
 
     def set_coefficients(self, **kwargs):
         """
@@ -162,6 +200,8 @@ class Distortions():
 
     def get_coefficients(self):
         """
+        Method to obtain a distortion coefficient dictionary.
+
         Returns
         -------
         out : dict
@@ -190,12 +230,34 @@ class Distortions():
 
     def load_coefficients(self, name):
         """
-        Load the coefficients from a human-readable text file.
+        Load the coefficients from a human-readable text file. This file
+        contains one line for each distortion coefficient, with three terms
+        separated by a space. The first term declares the distortion polynomial
+        to use, such as "A11" or "B22". The following two terms are the real and
+        imaginary parts of the coefficient. More information below.
 
         Parameters
         ----------
         name : string
          A valid file name for a properly formated document.
+
+        General format
+        --------------
+        `{A, B}nm Real-coefficient Imag-coefficient`
+
+        Example
+        -------
+        distortion.txt:
+        >>> A00 9.2999e-06 4.0513e-06
+        >>> B11 1.8369e-06 5.8968e-06
+        >>> A11 7.9964e-06 7.7446e-06
+        >>> B22 1.9602e-06 1.2024e-06
+        >>> A20 8.6922e-06 4.7277e-07
+        >>> A22 7.8818e-06 3.3797e-06
+        >>> B33 4.5008e-06 4.5870e-06
+        >>> B31 2.4208e-06 9.2781e-06
+        >>> A31 6.5722e-06 2.8047e-06
+        >>> A33 5.1478e-06 8.2145e-06
         """
         indict = {}
         with open(name, 'r') as f:
@@ -210,7 +272,14 @@ class Distortions():
 
     def get_n_m_Cp(self):
         """
-        Parse `~.coeffs` into useful numpy arrays.
+        Utility method to parse `~.coeffs` into useful numpy arrays for the
+        radial and accimuthal indices, plus the distortion coefficients.
+
+        Returns
+        -------
+        n, m, Cp : numpy arrays
+         The radial and accimuthal indices and the distortion coefficients for
+         this transform.
         """
         n = []
         m = []
@@ -225,35 +294,8 @@ class Distortions():
         Cp  = np.array(Cp)
         return n, m, Cp
 
-class Krivanek(Distortions):
-    """
-    Krivanek polynomial
-    -------------------
-    $ K_{nm} = \rho^n / {n+1} e^{im\phi} = A_{nm} + i B_{nm} $
-    """
+    def _get_polynomials(self, rho, phi, n, m, Cp):
 
-    def __call__(self, img=None, gpu=False, *args, **kwargs):
-        """
-        Apply distortion to image or unit circle.
-        """
-
-        if img is None:
-
-            # show displacements in the unit circle
-            rho, phi = _get_unit_circle(*args, **kwargs)
-            D = self.get_displacement(rho, phi)
-            return ComplexSignal2D(D)
-
-        if not gpu:
-
-            # apply distortions to this image
-            new_img_data = self._apply_distortion_cpu(img, *args, **kwargs)
-
-            return img.__class__(new_img_data)
-
-    def get_displacement(self, rho, phi):
-
-        n, m, Cp = self.get_n_m_Cp()
         odd = m < 0
         evn = ~ odd
 
@@ -264,12 +306,19 @@ class Krivanek(Distortions):
         K[...,evn] =    radial[...,evn]*np.cos(phi[...,None]*m[evn])   # Anm
         K[...,odd] = 1j*radial[...,odd]*np.sin(phi[...,None]*m[odd])   # Bnm
 
+        return K
+
+    def _get_displacement(self, rho, phi):
+
+        n, m, Cp = self.get_n_m_Cp()
+        K = self._get_polynomials(rho, phi, n, m, Cp)
+
         # the total displacement is obtained
         D = np.dot(K, Cp)
 
         return D
 
-    def _apply_distortion_cpu(self, img, *args, **kwargs):
+    def _distort_image(self, img, gpu=False, *args, **kwargs):
         '''
         Use this to interpolate in the CPU from some coordinates. Works on a
         single image.
@@ -286,12 +335,13 @@ class Krivanek(Distortions):
         rho = np.float32(np.abs(R))
         phi = np.float32(np.angle(R))
 
-        # update image coordinates with displacement
-        D = self.get_displacement(rho, phi)
+        if gpu is False:
+            # update image coordinates with displacement
+            D = self._get_displacement(rho, phi)
+            R = R - D + 0.5*(Nx+1j*Ny)
 
-        R += 0.5*(Nx+1j*Ny)
-        R -= D
-
-        # map interpolation
-        r_map = np.stack([R.real, R.imag], 0)
-        return map_coordinates(img.data, r_map, *args, **kwargs)
+            # map interpolation
+            r_map = np.stack([R.real, R.imag], 0)
+            return map_coordinates(img.data, r_map, *args, **kwargs)
+        else:
+            pass

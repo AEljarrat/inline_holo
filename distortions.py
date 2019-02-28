@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.ndimage import map_coordinates
-from hyperspy.signals import ComplexSignal2D
+from inline_holo import ComplexModifiedImage as CMI
+from inline_holo import ModifiedImage as MI
 
 def _get_nm_from_string(Pnm):
     """
@@ -84,6 +85,44 @@ def _get_unit_circle(N=64, fill_value=np.nan):
     phi[outside] = fill_value
     return rho, phi
 
+def _checkerboard(N):
+    """
+    Produce a checkerboard pattern, useful in diverse situations.
+
+    Parameters
+    ----------
+    N : integer
+     Size of the square pattern.
+
+    Returns
+    -------
+    image : ModifiedImage
+     A nice 8x8 checkerboard pattern.
+    """
+
+    # Kronecker product of 1-pixel checkerboard
+    Ns = N // 8
+    imdata = np.kron([[1, 0] * 4, [0, 1] * 4] * 4, np.ones((Ns, Ns)))
+    axs = [
+        {
+        'name' : 'x',
+        'size' : N,
+        'navigate': False,
+        'offset' : 0,
+        'scale' : 1/Ns,
+        'units' : 'squares'
+        },
+        {
+        'name' : 'y',
+        'size' : N,
+        'navigate': False,
+        'offset' : 0,
+        'scale' : 1/Ns,
+        'units' : 'squares'
+        }
+    ]
+    return MI(imdata, axes=axs)
+
 class Distortion():
     """
     Distortion polynomial module
@@ -143,7 +182,7 @@ class Distortion():
             # show displacements in the unit circle
             rho, phi = _get_unit_circle(*args, **kwargs)
             D = self._get_displacement(rho, phi)
-            return ComplexSignal2D(D)
+            return CMI(D)
 
         # apply distortions to this image
         new_img_data = self._distort_image(image, *args, **kwargs)

@@ -158,7 +158,7 @@ class Distortion():
 
     def __call__(self, image=None, *args, **kwargs):
         """
-        Using the current polynomial expansion, calling will either project the
+        Calling will use the current polynomial expansion to either project the
         displacement in the unit circle, or to a provided image, distorting it.
 
         Parameters

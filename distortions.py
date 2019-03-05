@@ -357,14 +357,33 @@ class Distortion():
 
         return D
 
-    def _distort_image(self, img, gpu=False, *args, **kwargs):
+    def _distort_image(
+            self,
+            image,
+            gpu=False,
+            *args, **kwargs
+        ):
         '''
         Use this to interpolate in the CPU from some coordinates. Works on a
         single image.
+
+        Parameters
+        ----------
+        image : hyperspy image
+         Source image. The coordinate system is calculated from this dataset.
+        gpu : bool
+         Use GPU.
+        *args, **kwargs passed on to `scipy.ndimage.map_coordinates` method.
+
+        Returns
+        -------
+        out : numpy array
+         Distorted image data.
+
         '''
 
         # Mesh corresponds to image shape and optical axis in the centre
-        Ny, Nx = img.axes_manager.signal_shape
+        Ny, Nx = image.axes_manager.signal_shape
 
         xx = np.arange(Nx) - Nx*0.5
         yy = np.arange(Ny) - Ny*0.5
@@ -381,6 +400,6 @@ class Distortion():
 
             # map interpolation
             r_map = np.stack([R.real, R.imag], 0)
-            return map_coordinates(img.data, r_map, *args, **kwargs)
+            return map_coordinates(image.data, r_map, *args, **kwargs)
         else:
             pass

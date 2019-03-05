@@ -197,15 +197,24 @@ class Distortion():
 
         Parameters
         ----------
-        **kwargs : float
-         All keyword arguments have to be of the form "Anm" or "Bnm". In other
-         words, a combination of one of two letters; A or B; and two numbers.
-         The letter sets the parity of the coefficient. A = even, B = odd.
-         The radial, "n", and accimuthal, "m", indices are set by two numbers.
-         These indices must comply with some rules;
-          m <= n;
-          m==0 only if n is even.
-          m and n share parity.
+        n_max : int
+         Optionally initialize all distortion coefficients in the range
+         [0, n_max) to 0. It will use the `~.set_coeffs_from_n_max` method.
+         If nmax is provided all other parameters are discarded.
+
+        "Pnm" : complex
+          A choice of keyword input can be used to provide separately the
+          distortion coefficients if nmax is not provided. These keywords follow
+          the form; Pnm = {A,B}nm. A combination of one of two letters marks the
+          parity of the distortion, A or B for even or odd. Two numbers are used
+          to select the polynomial order, n and m for the radial and accimuthal.
+
+          Moreover, these indices must comply with some general rules;
+              m <= n;
+              m == 0 only if n is even.
+              m and n share parity.
+
+        Coefficients with a value of 0j are removed from the list (see below).
 
         Note
         ----
@@ -213,29 +222,54 @@ class Distortion():
         according to the OSA standard index for Zernike polynomials.
         """
 
+        if 'n_max' in kwargs:
+            self.set_coeffs_from_n_max(n_max = kwargs['n_max'])
+            return
+
         coeffs = self._coeffs.copy()
-        for ki in kwargs:
+        for key in kwargs:
 
             # process string input
-            n, m = _get_nm_from_string(ki)
+            n, m = _get_nm_from_string(key)
 
             # compute OSA index
             p = (n*(n+2)+m) // 2
 
             # get value
-            value  = complex(kwargs[ki])
+            value  = complex(kwargs[key])
 
             # (over)write the value if its not zero
             if value == 0j:
-                if ki in coeffs:
-                    del coeffs[ki]
+                if key in coeffs:
+                    del coeffs[key]
             else:
-                coeffs[ki] = [n, m, p, value]
+                coeffs[key] = [n, m, p, value]
 
         # sort the coefficients following p
         self._coeffs = {}
         for key, value in sorted(coeffs.items(), key=lambda x: x[1][2]):
             self._coeffs[key] = value
+
+    def set_coeffs_from_n_max(self, n_max):
+        '''
+        Initialize the n, m, p indices of the distortion coefficients up to
+        n_max radial order polynomials.
+
+        Parameters
+        ----------
+        n_max : int
+         Maximum radial index of the polynomials used for the fit.
+        '''
+        self._coeffs = {}
+        for n in range(0, n_max):
+            for m in range(-n,n+1,2):
+                # compute OSA index
+                p = (n*(n+2)+m) // 2
+                if m < 0:
+                    key = 'B'+str(n)+str(-m)
+                else:
+                    key = 'A'+str(n)+str(m)
+                self._coeffs[key] = [n, m, p, 0j]
 
     def get_coefficients(self):
         """
